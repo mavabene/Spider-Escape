@@ -1,5 +1,45 @@
 
 import sys
+import os
+import json
+import math
+from pathlib import Path
+
+VERSION = "2.0.0"
+SCORE_FILE = Path.home() / "Library/Application Support/Spider Escape/high_score.json"
+try:
+    HIGH_SCORE = max(0, int(json.loads(SCORE_FILE.read_text())["high_score"]))
+except (OSError, ValueError, KeyError, TypeError):
+    HIGH_SCORE = 0
+
+
+def save_high_score(score):
+    global HIGH_SCORE
+    if score <= HIGH_SCORE:
+        return
+    HIGH_SCORE = score
+    try:
+        SCORE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temporary = SCORE_FILE.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"high_score": HIGH_SCORE}))
+        temporary.replace(SCORE_FILE)
+    except OSError:
+        pass  # The session best still works if saving is unavailable.
+
+
+def silhouette_collision(player, obstacle):
+    if not player.rect.colliderect(obstacle.rect):
+        return False
+    player_mask = pygame.mask.from_surface(player.surf)
+    obstacle_mask = pygame.mask.from_surface(obstacle.surf)
+    offset = (obstacle.rect.x - player.rect.x, obstacle.rect.y - player.rect.y)
+    return player_mask.overlap(obstacle_mask, offset) is not None
+
+
+if getattr(sys, "frozen", False):
+    os.chdir(sys._MEIPASS)
+else:
+    os.chdir(Path(__file__).resolve().parent)
 import pygame
 import random
 from pygame.locals import *  # eg    K_UP, K_DOWN,K_LEFT,K_RIGHT,K_ESCAPE,KEYDOWN,QUIT
@@ -41,7 +81,7 @@ PLAYERSPEED = 2*GAMESPEED/3
 ################################### Change by Chufan #################################################
 screen = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
 #Set Title and Icon for Game Window
-pygame.display.set_caption("Spanish Racing")
+pygame.display.set_caption("Spider Escape " + VERSION)
 icon = pygame.image.load('steering-wheel.png')   #import image of icon
 pygame.display.set_icon(icon)     #display icon
 ################################# Change end ###########################################################
@@ -54,6 +94,8 @@ class Player(pygame.sprite.Sprite):
         self.surf = pygame.image.load("Jeep.png").convert()
         self.surf.set_colorkey((0, 0, 0), RLEACCEL)
         self.rect = self.surf.get_rect()
+        self.tire_paint = [None, None]
+        self.previous_tires = None
         self.rect.bottom=DISPLAY_HEIGHT
         self.rect.left=DISPLAY_WIDTH/2-Player_width/2
 
@@ -78,11 +120,40 @@ class Player(pygame.sprite.Sprite):
         elif self.rect.bottom >= DISPLAY_HEIGHT:
             self.rect.bottom = DISPLAY_HEIGHT
 
+def random_spider_scale():
+    # Truncate by resampling rather than piling up values at the endpoints.
+    while True:
+        scale = random.gauss(1.0, 0.18)
+        if 0.5 <= scale <= 1.5:
+            return scale
+
+
+def random_splat_opacity():
+    # Half-normal transparency: small transparency is most common.
+    while True:
+        transparency = abs(random.gauss(0.0, 0.18))
+        if transparency <= 0.5:
+            return 1.0 - transparency
+
+
+def load_spider_image(filename, scale):
+    image = pygame.image.load(filename).convert()
+    image.set_colorkey((0, 0, 0))
+    # Normalize both walking frames so mirroring cannot change the collision bounds.
+    size = (max(1, round(135 * scale)), max(1, round(123 * scale)))
+    return pygame.transform.scale(image, size)
+
+
 # Stationary spiders - if touched player is killed
 class Obstacle(pygame.sprite.Sprite):
     def __init__(self):
         super(Obstacle, self).__init__()
-        self.surf = pygame.image.load("spider.png").convert()
+        self.scale = random_spider_scale()
+        self.frame_names = random.choice([
+            ("spider.png", "spider_mirror.png"),
+            ("spider_mirror.png", "spider.png"),
+        ])
+        self.surf = load_spider_image(self.frame_names[0], self.scale)
         self.surf.set_colorkey((0,0,0), RLEACCEL)
         self.rect = self.surf.get_rect(
             center=(
@@ -99,11 +170,105 @@ class Obstacle(pygame.sprite.Sprite):
         if self.rect.top > DISPLAY_HEIGHT:
             self.kill()
 
+class Splat(pygame.sprite.Sprite):
+    """A fixed, independently rotated mark that scrolls with the road."""
+    def __init__(self, center, angle=None, scale=1.0, size=None):
+        super().__init__()
+        self.angle = random.randrange(360) if angle is None else angle % 360
+        self.scale = scale
+        original = pygame.image.load("splat.png").convert_alpha()
+        if size is not None:
+            original = pygame.transform.smoothscale(original, size)
+        self.surf = pygame.transform.rotozoom(original, self.angle, 1.0 if size else self.scale)
+        self.rect = self.surf.get_rect(center=center)
+        self.track_color = tuple(original.get_at((original.get_width() // 2, original.get_height() // 2)))[:3]
+        self.contact_mask = pygame.mask.from_surface(self.surf)
+        self.opacity = random_splat_opacity()
+        self.surf.set_alpha(round(255 * self.opacity))
+
+    def update(self):
+        self.rect.move_ip(0, GAMESPEED)
+        if self.rect.top > DISPLAY_HEIGHT:
+            self.kill()
+
+
+class TireTrack(pygame.sprite.Sprite):
+    """A road mark with spatially fading paint, carried downscreen with the road."""
+    def __init__(self, start, end, color, start_alpha, end_alpha, width):
+        super().__init__()
+        padding = width + 1
+        left = math.floor(min(start[0], end[0])) - padding
+        top = math.floor(min(start[1], end[1])) - padding
+        self.rect = pygame.Rect(left, top,
+            math.ceil(abs(end[0] - start[0])) + padding * 2 + 1,
+            math.ceil(abs(end[1] - start[1])) + padding * 2 + 1)
+        self.surf = pygame.Surface(self.rect.size, pygame.SRCALPHA)
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        squared_length = dx * dx + dy * dy
+        radius = max(1, width / 2)
+        for y in range(self.rect.height):
+            for x in range(self.rect.width):
+                px, py = x + left, y + top
+                t = (((px - start[0]) * dx + (py - start[1]) * dy) / squared_length
+                     if squared_length else 0)
+                t = max(0.0, min(1.0, t))
+                nearest = (start[0] + dx * t, start[1] + dy * t)
+                if math.dist((px, py), nearest) <= radius:
+                    alpha = round(start_alpha + (end_alpha - start_alpha) * t)
+                    self.surf.set_at((x, y), (*color, alpha))
+
+    def update(self):
+        self.rect.move_ip(0, GAMESPEED)
+        if self.rect.top > DISPLAY_HEIGHT:
+            self.kill()
+
+
+def leave_tire_tracks(player, splats, tracks, road):
+    points = [(player.rect.left + round(player.rect.width * fraction), player.rect.bottom - 3)
+              for fraction in (0.2, 0.8)]
+    if player.previous_tires is None:
+        player.previous_tires = points
+    for index, point in enumerate(points):
+        previous = player.previous_tires[index]
+        start = (previous[0], previous[1] + GAMESPEED)
+        distance = math.dist(start, point)
+        paint = player.tire_paint[index]
+        if paint is not None and distance > 0:
+            length = min(distance, paint['remaining'])
+            fraction = length / distance
+            end = (start[0] + (point[0] - start[0]) * fraction,
+                   start[1] + (point[1] - start[1]) * fraction)
+            alpha = paint['alpha'] * paint['remaining'] / paint['length']
+            paint['remaining'] -= length
+            end_alpha = paint['alpha'] * paint['remaining'] / paint['length']
+            mark = TireTrack(start, end, paint['color'], alpha, end_alpha,
+                             max(2, round(player.rect.width * 0.12)))
+            tracks.add(mark)
+            road.add(mark)
+            if paint['remaining'] <= 0:
+                player.tire_paint[index] = None
+        # Paint is refreshed while a rear tire is actually touching colored splat pixels.
+        for splat in reversed(splats.sprites()):
+            local = (point[0] - splat.rect.left, point[1] - splat.rect.top)
+            if (0 <= local[0] < splat.rect.width and 0 <= local[1] < splat.rect.height
+                    and splat.contact_mask.get_at(local)):
+                length = random.uniform(0.5, 1.0) * player.rect.height
+                player.tire_paint[index] = dict(length=length, remaining=length,
+                    alpha=round(255 * splat.opacity), color=splat.track_color)
+                break
+    player.previous_tires = points
+
+
 # Walking spiders - walk in random directions
 class Obstacle2(pygame.sprite.Sprite):
     def __init__(self, side):
         super(Obstacle2, self).__init__()
-        self.surf = pygame.image.load("spider_mirror.png").convert_alpha() # for animated walking effect
+        self.scale = random_spider_scale()
+        self.frame_names = random.choice([
+            ("spider.png", "spider_mirror.png"),
+            ("spider_mirror.png", "spider.png"),
+        ])
+        self.surf = load_spider_image(self.frame_names[0], self.scale) # for animated walking effect
         self.surf.set_colorkey((0,0,0), RLEACCEL)
         self.side = side                           # variable used to initiate image switching for walking effect
         self.move=random.randint(-5,5)
@@ -117,14 +282,20 @@ class Obstacle2(pygame.sprite.Sprite):
 
     # Remove it when it passes the bottom edge of the screen
     def update(self):
+        if getattr(self, "splatted", False):
+            self.rect.move_ip(0, GAMESPEED)
+            if self.rect.top > DISPLAY_HEIGHT:
+                self.kill()
+            return
         if self.side < 15:      # sets timing of image switching for waking effect
-            self.surf=pygame.image.load("spider.png").convert_alpha()
+            self.surf=load_spider_image(self.frame_names[0], self.scale)
             self.side = self.side + 1
         elif self.side < 30:
-            self.surf=pygame.image.load("spider_mirror.png").convert_alpha()
+            self.surf=load_spider_image(self.frame_names[1], self.scale)
             self.side=self.side+1
         else:
             self.side=0  # resets timer for walking effect
+        self.surf.set_colorkey((0, 0, 0))
         self.rect.move_ip(self.move, self.speed/1.5+self.move/2)
         if self.rect.top > DISPLAY_HEIGHT:
             self.kill()
@@ -136,7 +307,12 @@ class Target_Spider(pygame.sprite.Sprite):
 
     def __init__(self, side):
         super(Target_Spider, self).__init__()
-        self.surf = pygame.image.load("spider_mirror.png").convert_alpha()
+        self.scale = random_spider_scale()
+        self.frame_names = random.choice([
+            ("spider.png", "spider_mirror.png"),
+            ("spider_mirror.png", "spider.png"),
+        ])
+        self.surf = load_spider_image(self.frame_names[0], self.scale)
         self.surf.set_colorkey((0,0,0), RLEACCEL)
         self.side = side
         self.move=0
@@ -149,6 +325,11 @@ class Target_Spider(pygame.sprite.Sprite):
         self.speed = GAMESPEED/4
     # Remove it when it passes the bottom edge of the screen
     def update(self):
+        if getattr(self, "splatted", False):
+            self.rect.move_ip(0, GAMESPEED)
+            if self.rect.top > DISPLAY_HEIGHT:
+                self.kill()
+            return
         global CORRECT
 
         # ********************* Quiz add *************************
@@ -160,15 +341,16 @@ class Target_Spider(pygame.sprite.Sprite):
         # **********************************************************
         # Set up animation
         if self.side < 15:
-            self.surf=pygame.image.load("spider.png").convert_alpha()
+            self.surf=load_spider_image(self.frame_names[0], self.scale)
             self.side = self.side + 1
         elif self.side < 30:
-            self.surf=pygame.image.load("spider_mirror.png").convert_alpha()
+            self.surf=load_spider_image(self.frame_names[1], self.scale)
             self.side=self.side+1
         elif self.side <40:
             self.side=0
 
 
+        self.surf.set_colorkey((0, 0, 0))
         self.rect.move_ip(self.move, self.speed)
 
         if self.rect.top > DISPLAY_HEIGHT:
@@ -180,13 +362,14 @@ class Target_Spider(pygame.sprite.Sprite):
 #     def update(self):
 #         global CORRECT
 #         if self.side < 15:
-#             self.surf=pygame.image.load("spider.png").convert_alpha()
+#             self.surf=load_spider_image(self.frame_names[0], self.scale)
 #             self.side = self.side + 1
 #         elif self.side < 30:
-#             self.surf=pygame.image.load("spider_mirror.png").convert_alpha()
+#             self.surf=load_spider_image(self.frame_names[1], self.scale)
 #             self.side=self.side+1
 #         else:
 #             self.side=0
+#         self.surf.set_colorkey((0, 0, 0))
 #         self.rect.move_ip(self.move, GAMESPEED/4)
 #
 #         # *********************** Quiz add ***************************
@@ -209,13 +392,14 @@ class Target_Spider(pygame.sprite.Sprite):
 #
 #     def update(self):
 #         if self.side < 15:
-#             self.surf=pygame.image.load("spider.png").convert_alpha()
+#             self.surf=load_spider_image(self.frame_names[0], self.scale)
 #             self.side = self.side + 1
 #         elif self.side < 30:
-#             self.surf=pygame.image.load("spider_mirror.png").convert_alpha()
+#             self.surf=load_spider_image(self.frame_names[1], self.scale)
 #             self.side=self.side+1
 #         else:
 #             self.side=0
+#         self.surf.set_colorkey((0, 0, 0))
 #         self.rect.move_ip(self.move, -GAMESPEED)
 #         if CORRECT:
 #             self.surf=pygame.image.load("splat.png").convert_alpha()
@@ -311,7 +495,7 @@ class InputBox():
                 self.active = False
             # Change the current color of the input box.
             self.color = self.COLOR_ACTIVE if self.active else self.COLOR_INACTIVE
-        if event.type == pygame.KEYDOWN:
+        if event.type == pygame.KEYDOWN and Quiz1.show:
             #if self.active and not self.end:
             if event.key == pygame.K_RETURN:
                 # print(self.text)
@@ -324,7 +508,7 @@ class InputBox():
 
          # Re-render the text.
     def draw(self):
-        if not CORRECT:
+        if Quiz1.show:
             self.txt_surface = self.FONT.render(self.text, True, self.color)
             screen.blit(self.txt_surface, (self.x +20, self.y + 10))
         
@@ -351,6 +535,10 @@ class Quiz():
         self.engword = answers[idx]
         self.answer=''
         self.show = True
+        self.started_at = pygame.time.get_ticks()
+        self.deadline = self.started_at + 10000
+        self.displayed_seconds = None
+        self.timer_text = None
         # self.screen = pygame.display.set_mode((640, 480))  # don't want to change game screen . .
 
         global CORRECT  # used to transition quiz modes and implement side effects of successful answer in sprite groups
@@ -364,15 +552,24 @@ class Quiz():
     def update(self):
         global CORRECT
 
+        if self.show and pygame.time.get_ticks() >= self.deadline:
+            self.show = False
         if self.show:
         # update quiz_box
         #self.quiz_box.handle_event(event)
         #self.quiz_box.update()
             quiz_text = time_font.render('Translate “' + self.spanword + '” :', True, grey)
-            draw_rect_alpha(screen, (255, 255, 255, 200), (270, 25, 450, 100), 10)
-            pygame.draw.rect(screen, blackish, (270, 22, 450, 106), 3, 10)
+            draw_rect_alpha(screen, (255, 255, 255, 125), (270, 25, 450, 140), 10)
+            border_surface = pygame.Surface((450, 146), pygame.SRCALPHA)
+            pygame.draw.rect(border_surface, (*blackish[:3], 150), (0, 0, 450, 146), 3, 10)
+            screen.blit(border_surface, (270, 22))
 
             screen.blit(quiz_text, (290, 32))
+            seconds = max(1, 10 - (pygame.time.get_ticks() - self.started_at) // 1000)
+            if seconds != self.displayed_seconds:
+                self.displayed_seconds = seconds
+                self.timer_text = pygame.font.Font(None, 34).render(f"Time left: {seconds} seconds", True, dark_red)
+            screen.blit(self.timer_text, (290, 117))
 
         # self.quiz_box.draw(self.screen)
         # pygame.display.flip()
@@ -456,13 +653,13 @@ def start_menu():
                 if event.key == K_ESCAPE:  # ending game if escape pressed
                     running = False
                     pygame.quit()
-                    quit()
+                    sys.exit()
 
             # If window close button clicked:
             elif event.type == pygame.QUIT:
                 running = False
                 pygame.quit()
-                quit()
+                sys.exit()
 
         # Draw background
         screen.blit(background, (0, 0))
@@ -521,6 +718,7 @@ def score():
 
 def show_score():
     global game_start_time
+    save_high_score(meter)
     over_text_outline = over_font_outline.render('SPIDER ATTACK!', True, dark_red)
     over_text = over_font.render('SPIDER ATTACK!', True, white)
     score = score_font.render('Traveled  ' + str(meter) + '  Meters', True, white)
@@ -536,15 +734,16 @@ def show_score():
             # Key pressed?
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:  # ending game if escape pressed
+                    save_high_score(meter)
                     running = False
                     pygame.display.quit()
-                    quit()
+                    sys.exit()
 
             # If window close button clicked:
             elif event.type == pygame.QUIT:
                 running = False
                 pygame.display.quit()
-                quit()
+                sys.exit()
 
         #Draw start button
         retry_button = create_button(DISPLAY_WIDTH/2-165, (DISPLAY_HEIGHT)/2 + 130, 300, 90, red, dark_red)
@@ -558,6 +757,8 @@ def show_score():
         screen.blit(over_text_outline, (150, 255))
         screen.blit(over_text, (170, 240))
         screen.blit(score, (DISPLAY_WIDTH/2-225, DISPLAY_HEIGHT/2 + 15))
+        best_text = time_font.render(f"Best: {HIGH_SCORE} m", True, white)
+        screen.blit(best_text, best_text.get_rect(midtop=(DISPLAY_WIDTH // 2, DISPLAY_HEIGHT // 2 + 85)))
         pygame.display.update()
         
     
@@ -613,6 +814,8 @@ def main():
     scenery = pygame.sprite.Group()
     moving_scenery = pygame.sprite.Group()     # for screen scrolling - traveling effect.  scenery does not hurt player
     all_sprites = pygame.sprite.Group()  # used to update display each cycle
+    splats = pygame.sprite.Group()
+    tire_tracks = pygame.sprite.Group()
     all_sprites.add(player)  # player always added to all_sprites
     type_box = InputBox(290, 64, 400, 50)
     
@@ -630,6 +833,7 @@ def main():
         # Update the position of objects ----------------------------------------------------------UPDATE
         obstacles.update()
         moving_scenery.update()
+        leave_tire_tracks(player, splats, tire_tracks, moving_scenery)
 
 
         # create a dirt colored background
@@ -637,8 +841,13 @@ def main():
         
 
         # Draw objects
-        for entity in all_sprites:
+        for entity in tire_tracks:
             screen.blit(entity.surf, entity.rect)
+        for entity in splats:
+            screen.blit(entity.surf, entity.rect)
+        for entity in all_sprites:
+            if entity not in splats:
+                screen.blit(entity.surf, entity.rect)
 
 ############################################## Change by Chufan ##########################################################
         # Display mileage the player runs
@@ -663,15 +872,17 @@ def main():
                 # Key pressed?
                 if event.type == KEYDOWN:
                     if event.key == K_ESCAPE:  # ending game if escape pressed
+                        save_high_score(meter)
                         running = False
                         pygame.display.quit()
-                        quit()
+                        sys.exit()
 
                 # If window close button clicked:
                 elif event.type == pygame.QUIT:
+                    save_high_score(meter)
                     running = False
                     pygame.display.quit()
-                    quit()
+                    sys.exit()
 
                 # If it is time to add object:
                 elif event.type == AddObstacle:  # Add spiders if it's time
@@ -710,15 +921,17 @@ def main():
                 # Key pressed?
                 if event.type == KEYDOWN:
                     if event.key == K_ESCAPE:  # ending game if escape pressed
+                        save_high_score(meter)
                         running = False
                         pygame.display.quit()
-                        quit()
+                        sys.exit()
 
                 # If window close button clicked:
                 elif event.type == pygame.QUIT:
+                    save_high_score(meter)
                     running = False
                     pygame.display.quit()
-                    quit()
+                    sys.exit()
 
                 # If it is time to add object:
                 elif event.type == AddObstacle:  # Add spiders if it's time
@@ -749,12 +962,11 @@ def main():
 
         if CORRECT:
             for item in obstacles:
-                item.speed = GAMESPEED
-                angle=random.randint(0, 359)
-                rot_image=pygame.image.load("splat.png").convert_alpha()
-                item.surf = pygame.transform.rotate(rot_image, angle)
-                moving_scenery.add(item)
-                obstacles.remove(item)
+                splat = Splat(item.rect.center, scale=item.scale, size=item.rect.size)
+                splats.add(splat)
+                moving_scenery.add(splat)
+                all_sprites.add(splat)
+                item.kill()
                 # Quiz1 = Quiz()
 
 
@@ -762,7 +974,7 @@ def main():
 
         
         # Check if player has collided with any obstacles and end game if so
-        if pygame.sprite.spritecollideany(player, obstacles):
+        if pygame.sprite.spritecollideany(player, obstacles, silhouette_collision):
             print("You are spider lunch!!")
             player.kill()
 
@@ -781,6 +993,7 @@ def main():
             pygame.time.set_timer(AddObstacle2, 20000)
             pygame.time.set_timer(AddTree2, 3000)
             width=100
+            type_box.text = ""
             Quiz1=Quiz()
             # Quiz1=Translation()
 
@@ -800,6 +1013,7 @@ def main():
             pygame.time.set_timer(AddTree2, 2000)
             pygame.time.set_timer(AddTargetSpider, 1000)
             width=120
+            type_box.text = ""
             Quiz1 = Quiz()
 
         if LEVEL == 2000:
@@ -818,6 +1032,7 @@ def main():
             pygame.time.set_timer(AddTree2, 1000)
             pygame.time.set_timer(AddTargetSpider, 800)
             width = 140
+            type_box.text = ""
             Quiz1 = Quiz()
 
         if LEVEL == 3000:
@@ -836,6 +1051,7 @@ def main():
             pygame.time.set_timer(AddTree2, 400)
             pygame.time.set_timer(AddTargetSpider, 600)
             width = 160
+            type_box.text = ""
             Quiz1 = Quiz()
 
         if LEVEL > 4000:
@@ -872,13 +1088,13 @@ while running:
             if event.key == K_ESCAPE:  # ending game if escape pressed
                 running = False
                 pygame.display.quit()
-                quit()
+                sys.exit()
 
         # If window close button clicked:
         elif event.type == pygame.QUIT:
             running = False
             pygame.display.quit()
-            quit()
+            sys.exit()
                 
     start_menu()
 

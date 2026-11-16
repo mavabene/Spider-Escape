@@ -2,13 +2,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-GAME="$ROOT/Original_Game_Files"
+GAME="$ROOT/../Finalp6"
 WORK="$ROOT/build_work"
-VENV="$ROOT/.venv"
+VENV="$ROOT/.venv-arm64"
+export PYINSTALLER_CONFIG_DIR="$WORK/pyinstaller-cache"
 
 echo
 echo "=========================================="
-echo " Spanish Racing — Apple Silicon Mac build"
+echo " Spider Escape 2.0 — Mac build"
 echo "=========================================="
 echo
 
@@ -21,25 +22,28 @@ fi
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Python 3 was not found. Install Python 3 for macOS, then run this script again."
   echo "https://www.python.org/downloads/macos/"
-  read -r -p "Press Return to close..."
+  true
   exit 1
 fi
 
 if [[ ! -f "$GAME/p6.py" ]]; then
-  echo "Could not find Original_Game_Files/p6.py."
-  read -r -p "Press Return to close..."
+  echo "Could not find ../Finalp6/p6.py."
+  true
   exit 1
 fi
 
-echo "1/5  Creating the build environment..."
-python3 -m venv "$VENV"
+echo "1/5  Preparing the build environment..."
+if [[ ! -x "$VENV/bin/python" ]]; then
+  python3 -m venv "$VENV"
+fi
 
-echo "2/5  Installing Pygame and PyInstaller..."
-"$VENV/bin/python" -m pip install --upgrade pip
-"$VENV/bin/python" -m pip install pygame pyinstaller
+echo "2/5  Checking Pygame and PyInstaller..."
+if ! "$VENV/bin/python" -c 'import pygame, PyInstaller' >/dev/null 2>&1; then
+  "$VENV/bin/python" -m pip install pygame pyinstaller
+fi
 
 echo "3/5  Preparing a packaging copy of the original game..."
-rm -rf "$WORK"
+mkdir -p "$WORK"
 mkdir -p "$WORK/src"
 
 # Copy all original game assets except the alternate easy-mode program.
@@ -73,13 +77,13 @@ if "os.chdir(sys._MEIPASS)" not in s:
 p.write_text(s)
 PY
 
-echo "4/5  Building Spanish Racing.app..."
+echo "4/5  Building Spider Escape 2.0.app..."
 cd "$WORK/src"
-"$VENV/bin/pyinstaller" \
+"$VENV/bin/python" -m PyInstaller \
   --noconfirm \
   --clean \
   --windowed \
-  --name "Spanish Racing" \
+  --name "Spider Escape 2.0" \
   --osx-bundle-identifier "com.private.spanishracing" \
   --add-data "Jungle.mp3:." \
   --add-data "Tree1sm.png:." \
@@ -92,20 +96,20 @@ cd "$WORK/src"
   --add-data "steering-wheel.png:." \
   --add-data "Grindcore Records.otf:." \
   --add-data "Scary Font.ttf:." \
-  --add-data "background.jpg:." \
+  --add-data "background.JPG:." \
   --add-data "sound.mp3:." \
   --add-data "digital-7.ttf:." \
   p6.py
 
 echo "5/5  Creating a friend-ready ZIP..."
 cd "$WORK"
-rm -f "$ROOT/Spanish Racing-Mac.zip"
-ditto -c -k --sequesterRsrc --keepParent "dist/Spanish Racing.app" "$ROOT/Spanish Racing-Mac.zip"
+rm -f "$ROOT/Spider Escape-2.0-Mac.zip"
+ditto -c -k --sequesterRsrc --keepParent "src/dist/Spider Escape 2.0.app" "$ROOT/Spider Escape-2.0-Mac.zip"
 
 echo
 echo "BUILD COMPLETE"
-echo "App: $WORK/src/dist/Spanish Racing.app"
-echo "Shareable ZIP: $ROOT/Spanish Racing-Mac.zip"
+echo "App: $WORK/src/dist/Spider Escape 2.0.app"
+echo "Shareable ZIP: $ROOT/Spider Escape-2.0-Mac.zip"
 echo
 echo "Please launch the app once on this Mac and play-test it before sending it to friends."
-read -r -p "Press Return to close..."
+true

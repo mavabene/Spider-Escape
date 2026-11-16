@@ -11,3 +11,6 @@ build_work/
 
 # macOS metadata
 .DS_Store
+
+.venv-arm64/
+*-Mac.zip
