@@ -5,7 +5,7 @@ import json
 import math
 from pathlib import Path
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 SCORE_FILE = Path.home() / "Library/Application Support/Spider Escape/high_score.json"
 try:
     HIGH_SCORE = max(0, int(json.loads(SCORE_FILE.read_text())["high_score"]))
@@ -632,7 +632,7 @@ def start_menu():
     DirectionText_2 = direction_font.render('arrow keys', True, yellow)
     DirectionText_3 = direction_font.render('Be careful of poor visibility in the trees!', True, yellow)
     #DirectionText_4 = direction_font.render('- Visibility is poor!', True, yellow)
-    background = pygame.image.load('background.jpg')
+    background = pygame.image.load('background.JPG')
     right_arrow = pygame.image.load('right_arrow.png')
     up_arrow = pygame.transform.rotate(right_arrow, 90)
     left_arrow = pygame.transform.rotate(right_arrow, 180)

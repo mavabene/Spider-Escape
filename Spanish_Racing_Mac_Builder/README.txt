@@ -1,11 +1,11 @@
-Spider Escape 2.0 — Mac build
+Spider Escape 2.0.1 — Mac build
 
 Run Build_Mac.command to build the maintained regular game from ../Finalp6/p6.py.
 The script uses .venv-arm64 and packages the game with its artwork, audio, and fonts.
 
 Outputs:
-  build_work/src/dist/Spider Escape 2.0.app
-  Spider Escape-2.0-Mac.zip
+  Verified app in the temporary build folder printed by the script
+  Spider Escape-2.0.1-Mac.zip
 
 Version 2.0 includes a ten-second Spanish quiz countdown, persistent high score,
 resized and mirrored spiders, rotated splats, and fading red tire marks. Spider
@@ -17,5 +17,10 @@ the visible silhouette.
 The high score is stored in ~/Library/Application Support/Spider Escape/high_score.json.
 Original_Game_Files contains the archived original code and assets.
 
-This is an unsigned macOS app. On first launch, Control-click it and choose Open
-if macOS displays a security prompt.
+This app has a local signature but is not Apple-notarized. On first launch,
+macOS may require System Settings > Privacy & Security > Open Anyway.
+
+Packaging update 2.0.1 builds outside iCloud, signs the app locally, and verifies
+the signature again after extracting the delivered ZIP. It is not notarized.
+Recipients should replace older copies, extract the ZIP, move the app to Applications,
+try opening it, then use System Settings > Privacy & Security > Open Anyway if offered.

@@ -3,13 +3,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 GAME="$ROOT/../Finalp6"
-WORK="$ROOT/build_work"
+WORK="$(mktemp -d /tmp/spider-escape-build.XXXXXX)"
 VENV="$ROOT/.venv-arm64"
 export PYINSTALLER_CONFIG_DIR="$WORK/pyinstaller-cache"
 
 echo
 echo "=========================================="
-echo " Spider Escape 2.0 — Mac build"
+echo " Spider Escape 2.0.1 — Mac build"
 echo "=========================================="
 echo
 
@@ -50,40 +50,13 @@ mkdir -p "$WORK/src"
 cp "$GAME/p6.py" "$WORK/src/p6.py"
 find "$GAME" -maxdepth 1 -type f ! -name 'p6.py' -exec cp {} "$WORK/src/" \;
 
-# The original code requests background.jpg, while the supplied file is named background.JPG.
-# Keep the original untouched and normalize the copied filename for the app bundle.
-if [[ -f "$WORK/src/background.JPG" && ! -f "$WORK/src/background.jpg" ]]; then
-  cp "$WORK/src/background.JPG" "$WORK/src/background.jpg"
-fi
-
-# Add only a resource-directory startup adjustment to the packaging copy.
-# This lets the original relative asset filenames resolve inside the frozen .app.
-"$VENV/bin/python" - "$WORK/src/p6.py" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1])
-s = p.read_text()
-needle = "import sys\n"
-shim = (
-    "import sys\n"
-    "import os\n"
-    "if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):\n"
-    "    os.chdir(sys._MEIPASS)\n"
-)
-if "os.chdir(sys._MEIPASS)" not in s:
-    if needle not in s:
-        raise SystemExit("Could not safely locate the import section in p6.py.")
-    s = s.replace(needle, shim, 1)
-p.write_text(s)
-PY
-
-echo "4/5  Building Spider Escape 2.0.app..."
+echo "4/5  Building Spider Escape 2.0.1.app..."
 cd "$WORK/src"
 "$VENV/bin/python" -m PyInstaller \
   --noconfirm \
   --clean \
   --windowed \
-  --name "Spider Escape 2.0" \
+  --name "Spider Escape 2.0.1" \
   --osx-bundle-identifier "com.private.spanishracing" \
   --add-data "Jungle.mp3:." \
   --add-data "Tree1sm.png:." \
@@ -101,15 +74,21 @@ cd "$WORK/src"
   --add-data "digital-7.ttf:." \
   p6.py
 
-echo "5/5  Creating a friend-ready ZIP..."
-cd "$WORK"
-rm -f "$ROOT/Spider Escape-2.0-Mac.zip"
-ditto -c -k --sequesterRsrc --keepParent "src/dist/Spider Escape 2.0.app" "$ROOT/Spider Escape-2.0-Mac.zip"
-
-echo
+echo "5/5  Verifying the app and packaged ZIP..."
+APP="$WORK/src/dist/Spider Escape 2.0.1.app"
+# Keep signing and app bundles outside cloud-synced folders.
+xattr -cr "$APP"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 2.0.1" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 2.0.1" "$APP/Contents/Info.plist"
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
+ZIP="$ROOT/Spider Escape-2.0.1-Mac.zip"
+ditto --norsrc --noextattr -c -k --keepParent "$APP" "$ZIP"
+mkdir "$WORK/verify"
+ditto -x -k "$ZIP" "$WORK/verify"
+codesign --verify --deep --strict "$WORK/verify/Spider Escape 2.0.1.app"
+shasum -a 256 "$ZIP" > "$ZIP.sha256"
 echo "BUILD COMPLETE"
-echo "App: $WORK/src/dist/Spider Escape 2.0.app"
-echo "Shareable ZIP: $ROOT/Spider Escape-2.0-Mac.zip"
-echo
-echo "Please launch the app once on this Mac and play-test it before sending it to friends."
-true
+echo "Verified app: $APP"
+echo "Send this ZIP: $ZIP"
+echo "This locally signed app is not Apple-notarized; recipients may need Privacy & Security > Open Anyway."

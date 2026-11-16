@@ -5,6 +5,9 @@
 - [ ] Add a bug zapper that charges every 30 seconds and can shoot and splat a spider ahead.
 - [ ] Add a before-play option to turn the Spanish quiz on or off.
 
+- [ ] Add bug-zapper ammo pickups that the car collects by driving over them.
+- [ ] Add other collectible power-ups, such as spider armor (invincibility), slow motion, and spider repellent.
+
 ## Multiplayer
 - [ ] Add a two-player mode where cars bounce apart on contact.
 - [ ] Give both players bug zappers.
