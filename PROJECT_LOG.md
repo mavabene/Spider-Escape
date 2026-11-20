@@ -23,3 +23,11 @@ Next step / open issues: Confirm the 2.0.1 ZIP opens on the remaining recipient'
 Added the trial source, rules, README, and Mac build script to version control. The trial includes player/color/quiz options, pickup-based ammo, armor, slow, repellent, and separate trial scores. Python syntax, rule behavior, and build-script syntax checks passed; interactive gameplay and a fresh app build were not verified in this update.
 
 **Next step / open issues** Play-test the trial and verify a fresh Mac build; reconcile the iCloud checkout with the existing local copy before migrating.
+
+## 2026-11-19 23:04 PST
+
+**TL;DR** Saved the 2.0.2 trial menu, zapper recharge, pickup icons, and tire-track improvements.
+
+Updated the clickable start menu, ten-second zapper charging, illustrated pickups, roadside foliage, splat sizing, and per-tire fading tracks. Renamed the trial build to 2.0.2. Python and shell syntax, headless menu rendering, and zapper recharge checks passed.
+
+**Next step / open issues** Play-test the revised trial and verify a fresh Mac app build; reconcile the existing local and iCloud copies before migration.
