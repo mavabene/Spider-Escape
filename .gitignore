@@ -18,3 +18,4 @@ build_work/
 # Generated local app copies and checksums
 Spanish_Racing_Mac_Builder/*.app/
 Spanish_Racing_Mac_Builder/*.zip.sha256
+Trial/*.app/

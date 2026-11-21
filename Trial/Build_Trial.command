@@ -88,9 +88,22 @@ ZIP="$ROOT/Spider Escape-2.0.2-Trial-Mac.zip"
 ditto --norsrc --noextattr -c -k --keepParent "$APP" "$ZIP"
 mkdir "$WORK/verify"
 ditto -x -k "$ZIP" "$WORK/verify"
-codesign --verify --deep --strict "$WORK/verify/Spider Escape 2.0.2 Trial.app"
+VERIFIED_APP="$WORK/verify/Spider Escape 2.0.2 Trial.app"
+codesign --verify --deep --strict "$VERIFIED_APP"
 shasum -a 256 "$ZIP" > "$ZIP.sha256"
+
+LOCAL_APP="$TRIAL/Spider Escape 2.0.2 Trial.app"
+PREVIOUS_APP="$WORK/previous.app"
+if [[ -e "$LOCAL_APP" ]]; then
+  mv "$LOCAL_APP" "$PREVIOUS_APP"
+fi
+if ! mv "$VERIFIED_APP" "$LOCAL_APP"; then
+  if [[ -e "$PREVIOUS_APP" ]]; then
+    mv "$PREVIOUS_APP" "$LOCAL_APP"
+  fi
+  exit 1
+fi
 echo "BUILD COMPLETE"
-echo "Verified app: $APP"
+echo "Verified app: $LOCAL_APP"
 echo "Send this ZIP: $ZIP"
 echo "This locally signed app is not Apple-notarized; recipients may need Privacy & Security > Open Anyway."

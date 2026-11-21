@@ -9,7 +9,7 @@ COLORS = ('original', 'blue', 'red', 'green', 'yellow')
 class Options:
     players: int = 1
     spanish_quiz: bool = True
-    colors: tuple = ('blue', 'original')
+    colors: tuple = ('original', 'original')
 
     @property
     def quiz_enabled(self):

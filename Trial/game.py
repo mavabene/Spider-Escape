@@ -7,6 +7,7 @@ from rules import Options, CarState, COLORS
 if getattr(sys,'frozen',False): os.chdir(sys._MEIPASS)
 else: os.chdir(Path(__file__).resolve().parent.parent/'Finalp6')
 pg.init(); W,H=1000,800
+TWO_PLAYER_WIDTH = 1280
 screen=pg.display.set_mode((W,H)); pg.display.set_caption('Spider Escape 2.0.2')
 clock=pg.time.Clock(); font=pg.font.Font(None,30); large=pg.font.Font(None,58)
 try: pg.mixer.music.load('Jungle.mp3'); pg.mixer.music.play(-1)
@@ -20,10 +21,32 @@ def tint(image,color):
     img=image.copy(); overlay=pg.Surface(img.get_size(),pg.SRCALPHA); overlay.fill((*color,0)); img.blit(overlay,(0,0),special_flags=pg.BLEND_RGBA_ADD); return img
 palette={'original':(0,0,0),'blue':(0,45,120),'red':(80,0,0),'green':(0,70,0),'yellow':(65,50,0)}
 carimage=pg.image.load('Jeep.png').convert(); carimage.set_colorkey((0,0,0))
-spiderfiles=[pg.image.load(x).convert() for x in ('spider.png','spider_mirror.png')]
-for img in spiderfiles: img.set_colorkey((0,0,0))
+spiderfiles = [
+    pg.transform.grayscale(pg.image.load(name).convert())
+    for name in ('spider.png', 'spider_mirror.png')
+]
+SPIDER_SHADES = (
+    ((11, 6, 2), (25, 13, 5), (38, 20, 8), (45, 29, 14), (51, 34, 20)),
+    ((0, 0, 0), (12, 12, 12), (26, 26, 26)),
+    ((40, 9, 12), (13, 29, 8), (20, 12, 36)),
+)
+
+
+def make_spider_frames(size):
+    shades = random.choices(SPIDER_SHADES, weights=(80, 17, 3))[0]
+    color = random.choice(shades)
+    frames = []
+    for base in spiderfiles:
+        frame = pg.transform.scale(base, size)
+        frame.fill(color, special_flags=pg.BLEND_RGB_ADD)
+        # The original black background receives the same color offset.
+        frame.set_colorkey(color)
+        frames.append(frame)
+    return frames
+
+
 splatimage=pg.image.load('splat.png').convert_alpha(); tree=pg.image.load('Tree1sm.png').convert(); tree.set_colorkey((0,0,0))
-options=Options(); coloridx=[1,0]
+options=Options(); coloridx=[COLORS.index(color) for color in options.colors]
 
 # Match the original title screen while keeping the trial's settings visible.
 menu_background = pg.transform.scale(pg.image.load('background.JPG').convert(), (W,H))
@@ -33,7 +56,7 @@ menu_font = pg.font.Font(None, 30)
 menu_small = pg.font.Font(None, 25)
 menu_gold = (222,192,100)
 start_rect = pg.Rect(350, 240, 300, 82)
-menu_rows = [pg.Rect(180, 384 + 43*i, 640, 40) for i in range(4)]
+menu_rows = [pg.Rect(215 + 290*(i%2), 530 + 48*(i//2), 280, 42) for i in range(4)]
 
 def draw_menu():
     screen.blit(menu_background,(0,0))
@@ -43,30 +66,34 @@ def draw_menu():
     pg.draw.rect(screen,(204,0,0) if hover else (102,0,0),start_rect,border_radius=15)
     label=menu_button_font.render('START!',True,menu_gold)
     screen.blit(label,label.get_rect(center=start_rect.center))
-    panel=pg.Surface((700,380),pg.SRCALPHA)
-    pg.draw.rect(panel,(180,95,6,215),panel.get_rect(),border_radius=15)
-    screen.blit(panel,(150,350))
+    panel=pg.Surface((590,250),pg.SRCALPHA)
+    pg.draw.rect(panel,(112,82,60,230),panel.get_rect(),border_radius=15)
+    screen.blit(panel,(205,500))
     heading=menu_font.render('Choose your game',True,menu_gold)
-    screen.blit(heading,heading.get_rect(center=(W//2,365)))
+    screen.blit(heading,heading.get_rect(center=(W//2,515)))
     rows=[
         f'1 / 2   Players: {options.players}',
-        f'Q   Spanish quiz: {"ON" if options.quiz_enabled else "OFF"}' + (' (two players: off)' if options.players==2 else ''),
+        f'Q   Quiz: {"ON" if options.quiz_enabled else "OFF"}' + (' (2 players)' if options.players==2 else ''),
         f'C   {"Left" if options.players==2 else "Your"} car: {COLORS[coloridx[0]].title()}',
         f'V   Right car: {COLORS[coloridx[1]].title()}',
     ]
     for rect,label in zip(menu_rows,rows):
-        if rect.collidepoint(pg.mouse.get_pos()):
-            pg.draw.rect(screen,(150,66,5),rect,border_radius=7)
-        screen.blit(menu_font.render(label,True,(255,238,180)),(rect.x+14,rect.y+7))
+        color=(140,103,75) if rect.collidepoint(pg.mouse.get_pos()) else (87,62,47)
+        pg.draw.rect(screen,color,rect,border_radius=8)
+        pg.draw.rect(screen,(222,192,100),rect,1,border_radius=8)
+        screen.blit(menu_small.render(label,True,(255,238,180)),(rect.x+9,rect.y+10))
     controls=['Arrow keys + Space: drive and zap',
               'Two players: left car uses WASD + Z',
               'Collect power-ups; zapper charges every 10 seconds',
               'Enter or click START to play   |   Esc to quit']
     for i,label in enumerate(controls):
         rendered=menu_small.render(label,True,(255,238,180))
-        screen.blit(rendered,rendered.get_rect(center=(W//2,590+i*29)))
+        screen.blit(rendered,rendered.get_rect(center=(W//2,640+i*25)))
 
 def menu():
+    global screen
+    if screen.get_size() != (W, H):
+        screen = pg.display.set_mode((W, H))
     while True:
         for e in pg.event.get():
             if e.type==pg.QUIT: return False
@@ -87,8 +114,15 @@ def menu():
         draw_menu()
         pg.display.flip();clock.tick(30)
 
+SPIDER_MIN_SCALE = 0.5
+SPIDER_MAX_SCALE = 1.5
+SPLAT_SCALE = (SPIDER_MIN_SCALE + SPIDER_MAX_SCALE) / 2
+HEAVY_SPIDER_SCALE = SPIDER_MIN_SCALE + 0.75 * (SPIDER_MAX_SCALE - SPIDER_MIN_SCALE)
+IMPACT_SLOW_MS = 500
+
+
 def car(index,x):
-    img=tint(carimage,palette[COLORS[coloridx[index]]]); return {'img':img,'rect':img.get_rect(center=(x,H-80)),'state':CarState(),'alive':True,'previous_tires':None,'tire_paint':[None,None],'tire_coverage':[0.0,0.0],'tire_contact':[False,False]}
+    img=tint(carimage,palette[COLORS[coloridx[index]]]); return {'img':img,'rect':img.get_rect(center=(x,H-80)),'state':CarState(),'alive':True,'impact_slow_until':0,'previous_tires':None,'tire_paint':[None,None],'tire_coverage':[0.0,0.0],'tire_contact':[False,False]}
 def make_splat(spider):
     # Match the original game: size the mark to the spider before rotating it.
     original=pg.transform.smoothscale(splatimage,spider['rect'].size)
@@ -175,6 +209,27 @@ def leave_tire_tracks(car,splats,trails,speed):
 
 def maskhit(a,b):
     return bool(a['rect'].colliderect(b['rect']) and pg.mask.from_surface(a['img']).overlap(pg.mask.from_surface(b['img']),(b['rect'].x-a['rect'].x,b['rect'].y-a['rect'].y)))
+def hit_spider(car, spider, now, splats):
+    """Resolve contact and return whether the spider was splatted."""
+    if not car['state'].active('armor', now):
+        car['alive'] = False
+        return False
+
+    scale = spider['scale']
+    if scale < SPLAT_SCALE:
+        splats.append(make_splat(spider))
+        return True
+
+    car_rect, spider_rect = car['rect'], spider['rect']
+    if spider_rect.centerx < car_rect.centerx:
+        spider_rect.right = car_rect.left - 1
+    else:
+        spider_rect.left = car_rect.right + 1
+    if scale >= HEAVY_SPIDER_SCALE:
+        car['impact_slow_until'] = now + IMPACT_SLOW_MS
+    return False
+
+
 def persist(mode,score):
     if score>best.get(mode,0):
         best[mode]=score
@@ -214,15 +269,20 @@ def recharge_zapper(cars, now, next_charge):
     return next_charge
 
 def play():
-    cars=[car(0,W//2 if options.players==1 else 350)]
-    if options.players==2: cars.append(car(1,650))
+    global screen
+    width = TWO_PLAYER_WIDTH if options.players == 2 else W
+    if screen.get_size() != (width, H):
+        screen = pg.display.set_mode((width, H))
+    cars = [car(0, width * 35 // 100 if options.players == 2 else width // 2)]
+    if options.players == 2:
+        cars.append(car(1, width * 65 // 100))
     spiders=[]; splats=[]; pickups=[]; shots=[]; trees=[]; trails=[]
     frame=0; score=0; quiz=None; answer=''; paused_until=0
     next_charge=pg.time.get_ticks()+10000
     # Start with foliage already lining both sides of the road.
     for y in range(-100,H+80,45):
         for edge in (0,1):
-            x=random.randrange(-55,30) if edge==0 else random.randrange(W-120,W-35)
+            x=random.randrange(-55,30) if edge==0 else random.randrange(width-120,width-35)
             trees.append([x,y+random.randrange(-18,19)])
     words=[('gato','cat'),('perro','dog'),('caballo','horse'),('naranja','orange'),('facil','easy'),('lapiz','pencil')]
     running=True
@@ -251,18 +311,30 @@ def play():
         for i,c in enumerate(cars):
             if not c['alive']:continue
             controls=(pg.K_w,pg.K_s,pg.K_a,pg.K_d) if options.players==2 and i==0 else (pg.K_UP,pg.K_DOWN,pg.K_LEFT,pg.K_RIGHT)
-            u,d,l,r=controls; old=c['rect'].copy(); c['rect'].move_ip((keys[r]-keys[l])*9,(keys[d]-keys[u])*9);c['rect'].clamp_ip(screen.get_rect());c['old']=old
+            u,d,l,r=controls
+            drive_speed = 5 if now < c['impact_slow_until'] else 9
+            c['old'] = c['rect'].copy()
+            c['rect'].move_ip((keys[r]-keys[l])*drive_speed,(keys[d]-keys[u])*drive_speed)
+            c['rect'].clamp_ip(screen.get_rect())
         if len(cars)==2 and all(c['alive'] for c in cars) and cars[0]['rect'].colliderect(cars[1]['rect']):
             cars[0]['rect']=cars[0]['old'];cars[1]['rect']=cars[1]['old']
             cars[0]['rect'].x-=8;cars[1]['rect'].x+=8
             for c in cars:c['rect'].clamp_ip(screen.get_rect())
         if frame%max(15,45-level*2)==0:
-            scale=max(.5,min(1.5,random.gauss(1,.18)));side=random.randrange(2);img=pg.transform.scale(spiderfiles[side],(round(135*scale),round(123*scale)))
-            color=random.choice([(0,0,0),(35,0,0),(0,25,0),(0,0,35)]); frames=[tint(pg.transform.scale(base,img.get_size()),color) for base in spiderfiles];img=frames[side];spiders.append({'frames':frames,'img':img,'rect':img.get_rect(center=(random.randrange(30,970),-50)),'scale':scale,'side':side,'dx':random.choice([-2,2]),'chase':level>=3 and random.random()<min(.65,.2+level*.03)})
-        if frame%100==0: pickups.append({'rect':pg.Rect(random.randrange(70,900),-52,52,52),'kind':random.choices(['ammo','armor','slow','repellent'],[5,2,2,2])[0]})
+            scale = max(SPIDER_MIN_SCALE, min(SPIDER_MAX_SCALE, random.gauss(1, .18)))
+            side = random.randrange(2)
+            frames = make_spider_frames((round(135 * scale), round(123 * scale)))
+            img = frames[side]
+            spiders.append({
+                'frames': frames, 'img': img,
+                'rect': img.get_rect(center=(random.randrange(30, width - 30), -50)),
+                'scale': scale, 'side': side, 'dx': random.choice([-2, 2]),
+                'chase': level >= 3 and random.random() < min(.65, .2 + level * .03),
+            })
+        if frame%100==0: pickups.append({'rect':pg.Rect(random.randrange(70,width-100),-52,52,52),'kind':random.choices(['ammo','armor','slow','repellent'],[5,2,2,2])[0]})
         if frame%3==0:
             trees.append([random.randrange(-55,30),-100])
-            trees.append([random.randrange(W-120,W-35),-100])
+            trees.append([random.randrange(width-120,width-35),-100])
         if options.quiz_enabled and frame%1000==0: quiz=random.choice(words);answer='';paused_until=now+10000
         if quiz and now>=paused_until:quiz=None;answer=''
         slowed=any(c['alive'] and c['state'].active('slow',now) for c in cars);speed=6 if slowed else 13
@@ -278,7 +350,9 @@ def play():
             if sp['rect'].top>H:spiders.remove(sp);continue
             for c in cars:
                 if c['alive'] and c['state'].active('repellent',now) and math.dist(c['rect'].center,sp['rect'].center)<180: sp['rect'].x+=-8 if sp['rect'].centerx<c['rect'].centerx else 8
-                if c['alive'] and maskhit(c,sp) and not c['state'].active('armor',now):c['alive']=False
+                if c['alive'] and maskhit(c,sp) and hit_spider(c, sp, now, splats):
+                    spiders.remove(sp)
+                    break
         for shot in shots[:]:
             shot.y-=24
             hit=next((sp for sp in spiders if sp['rect'].colliderect(shot)),None)
@@ -317,21 +391,22 @@ def play():
             active=' '.join(k.upper()+':'+str(math.ceil((v-now)/1000)) for k,v in c['state'].effects.items() if v>now)
             text(f'P{i+1} ammo {c["state"].ammo} {active}',10,50+i*28)
         text(f'{int(score)} m   Level {level}',10,10)
-        text(f'Next shot: {max(0,math.ceil((next_charge-now)/1000))}s',W-190,10)
+        text(f'Next shot: {max(0,math.ceil((next_charge-now)/1000))}s',width-190,10)
         if quiz:
             pg.draw.rect(screen,(45,45,45),(250,15,500,115),border_radius=8)
             text(f'Translate {quiz[0]}: {answer}',270,30);text(f'Time left: {max(0,math.ceil((paused_until-now)/1000))}',270,70)
         pg.display.flip()
         if not any(c['alive'] for c in cars):break
     mode='two' if options.players==2 else 'solo';persist(mode,int(score))
+    results_offset = (width - W) // 2
     while True:
         for e in pg.event.get():
             if e.type==pg.QUIT:return False
             if e.type==pg.KEYDOWN and e.key in (pg.K_RETURN,pg.K_ESCAPE):return True
-        screen.fill((45,35,32));text('SPIDER ATTACK!',250,200,f=large)
-        text(f'{"Shared" if mode=="two" else "Solo"} score: {int(score)} m',300,300)
-        text(f'{"Two-player" if mode=="two" else "Solo"} best: {best.get(mode,0)} m',300,345)
-        text('ENTER: menu',300,420);pg.display.flip();clock.tick(30)
+        screen.fill((45,35,32));text('SPIDER ATTACK!',250+results_offset,200,f=large)
+        text(f'{"Shared" if mode=="two" else "Solo"} score: {int(score)} m',300+results_offset,300)
+        text(f'{"Two-player" if mode=="two" else "Solo"} best: {best.get(mode,0)} m',300+results_offset,345)
+        text('ENTER: menu',300+results_offset,420);pg.display.flip();clock.tick(30)
 
 if __name__=='__main__':
     while menu():

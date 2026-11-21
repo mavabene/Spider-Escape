@@ -31,3 +31,11 @@ Added the trial source, rules, README, and Mac build script to version control. 
 Updated the clickable start menu, ten-second zapper charging, illustrated pickups, roadside foliage, splat sizing, and per-tire fading tracks. Renamed the trial build to 2.0.2. Python and shell syntax, headless menu rendering, and zapper recharge checks passed.
 
 **Next step / open issues** Play-test the revised trial and verify a fresh Mac app build; reconcile the existing local and iCloud copies before migration.
+
+## 2026-11-20 21:13 PST
+
+**TL;DR** Updated the 2.0.2 trial with armor impacts, natural spider colors, a wider co-op playfield, and a launchable Mac app in Trial.
+
+Armored cars splat small spiders, shove larger ones aside, and slow briefly on impact with the largest quarter. Brown and gray spiders predominate, both cars default to Original, and two-player mode uses 1280 × 800. Incorporated the compact two-column options panel from iCloud. Rebuilt, signed, and verified the Mac app in `Trial`. Collision, palette, and headless display checks passed.
+
+**Next step / open issues** Play-test the updated trial interactively. The iCloud checkout still has its original menu edit; use the local checkout for the current app.
