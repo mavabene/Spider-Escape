@@ -10,7 +10,7 @@ export PYINSTALLER_CONFIG_DIR="$WORK/pyinstaller-cache"
 
 echo
 echo "=========================================="
-echo " Spider Escape 2.0.2 Trial — Mac build"
+echo " Spider Escape 2.0.3 Trial — Mac build"
 echo "=========================================="
 echo
 
@@ -52,13 +52,13 @@ cp "$TRIAL/game.py" "$WORK/src/p6.py"
 cp "$TRIAL/rules.py" "$WORK/src/rules.py"
 find "$GAME" -maxdepth 1 -type f ! -name 'p6.py' -exec cp {} "$WORK/src/" \;
 
-echo "4/5  Building Spider Escape 2.0.2 Trial.app..."
+echo "4/5  Building Spider Escape 2.0.3 Trial.app..."
 cd "$WORK/src"
 "$VENV/bin/python" -m PyInstaller \
   --noconfirm \
   --clean \
   --windowed \
-  --name "Spider Escape 2.0.2 Trial" \
+  --name "Spider Escape 2.0.3 Trial" \
   --osx-bundle-identifier "com.private.spanishracing" \
   --add-data "Jungle.mp3:." \
   --add-data "Tree1sm.png:." \
@@ -77,22 +77,22 @@ cd "$WORK/src"
   p6.py
 
 echo "5/5  Verifying the app and packaged ZIP..."
-APP="$WORK/src/dist/Spider Escape 2.0.2 Trial.app"
+APP="$WORK/src/dist/Spider Escape 2.0.3 Trial.app"
 # Keep signing and app bundles outside cloud-synced folders.
 xattr -cr "$APP"
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 2.0.2" "$APP/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 2.0.2" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 2.0.3" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 2.0.3" "$APP/Contents/Info.plist"
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict "$APP"
-ZIP="$ROOT/Spider Escape-2.0.2-Trial-Mac.zip"
+ZIP="$ROOT/Spider Escape-2.0.3-Trial-Mac.zip"
 ditto --norsrc --noextattr -c -k --keepParent "$APP" "$ZIP"
 mkdir "$WORK/verify"
 ditto -x -k "$ZIP" "$WORK/verify"
-VERIFIED_APP="$WORK/verify/Spider Escape 2.0.2 Trial.app"
+VERIFIED_APP="$WORK/verify/Spider Escape 2.0.3 Trial.app"
 codesign --verify --deep --strict "$VERIFIED_APP"
 shasum -a 256 "$ZIP" > "$ZIP.sha256"
 
-LOCAL_APP="$TRIAL/Spider Escape 2.0.2 Trial.app"
+LOCAL_APP="$TRIAL/Spider Escape 2.0.3 Trial.app"
 PREVIOUS_APP="$WORK/previous.app"
 if [[ -e "$LOCAL_APP" ]]; then
   mv "$LOCAL_APP" "$PREVIOUS_APP"

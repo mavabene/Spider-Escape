@@ -8,7 +8,7 @@ if getattr(sys,'frozen',False): os.chdir(sys._MEIPASS)
 else: os.chdir(Path(__file__).resolve().parent.parent/'Finalp6')
 pg.init(); W,H=1000,800
 PLAYFIELD_WIDTH = 1280
-screen=pg.display.set_mode((W,H)); pg.display.set_caption('Spider Escape 2.0.2')
+screen=pg.display.set_mode((W,H)); pg.display.set_caption('Spider Escape 2.0.3')
 clock=pg.time.Clock(); font=pg.font.Font(None,30)
 try: pg.mixer.music.load('Jungle.mp3'); pg.mixer.music.play(-1)
 except pg.error: pass
@@ -305,7 +305,9 @@ def make_pickup_icon(kind):
     return icon
 
 PICKUP_ICONS={kind:make_pickup_icon(kind) for kind in ('ammo','armor','slow','repellent','flame')}
-PICKUP_WEIGHTS=(5,2,2,2,.5)
+# Keep the other pickups in the same proportions while doubling flame's
+# share of all spawns from 1/23 to 2/23.
+PICKUP_WEIGHTS = (5, 2, 2, 2, 22 / 21)
 FUEL_ICON = pg.transform.smoothscale(PICKUP_ICONS['flame'], (26, 26))
 
 
@@ -433,6 +435,34 @@ FLAME_FRAMES = make_flame_frames()
 def draw_flame(flame, frame):
     plume = FLAME_FRAMES[frame % len(FLAME_FRAMES)]
     screen.blit(plume, plume.get_rect(midbottom=flame.midbottom))
+
+
+def make_zap_frames():
+    rng = random.Random(202)
+    frames = []
+    for _ in range(8):
+        glow = pg.Surface((44, 58), pg.SRCALPHA)
+        arc = [(22, 7), (22 + rng.randint(-6, 6), 15),
+               (22 + rng.randint(-8, 8), 24), (22 + rng.randint(-8, 8), 33),
+               (22 + rng.randint(-6, 6), 43), (22, 51)]
+        branches = []
+        for index, direction in ((2, -1), (3, 1)):
+            x, y = arc[index]
+            branches.append([(x, y), (x + 5 * direction, y - 4),
+                             (x + rng.randint(8, 12) * direction, y - rng.randint(7, 13))])
+        for path in [arc, *branches]:
+            pg.draw.lines(glow, (58, 91, 247, 48), False, path, 7)
+        for path in [arc, *branches]:
+            pg.draw.lines(glow, (101, 165, 255, 150), False, path, 3)
+        for branch in branches:
+            pg.draw.aalines(glow, (186, 217, 255), False, branch)
+        pg.draw.aalines(glow, (238, 251, 255), False, arc)
+        frames.append(glow)
+    return frames
+
+
+ZAP_FRAMES = make_zap_frames()
+
 
 def recharge_zapper(cars, now, next_charge):
     if now>=next_charge:
@@ -631,7 +661,9 @@ def play():
         for sp in spiders:screen.blit(sp['img'],sp['rect'])
         for p in pickups:
             screen.blit(PICKUP_ICONS[p['kind']],p['rect'])
-        for shot in shots:pg.draw.rect(screen,(255,240,80),shot)
+        for shot in shots:
+            arc = ZAP_FRAMES[(frame + shot.centerx) % len(ZAP_FRAMES)]
+            screen.blit(arc, arc.get_rect(center=shot.center))
         for flame in flames: draw_flame(flame,frame)
         for i,c in enumerate(cars):
             active=' '.join(k.upper()+':'+str(math.ceil((v-now)/1000)) for k,v in c['state'].effects.items() if v>now)

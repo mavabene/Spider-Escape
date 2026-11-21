@@ -1,6 +1,6 @@
-# Spider Escape 2.0.2 trial
+# Spider Escape 2.0.3 trial
 
-Open **Spider Escape 2.0.2 Trial.app** in this folder. To refresh the app after
+Open **Spider Escape 2.0.3 Trial.app** in this folder. To refresh the app after
 source changes, run `bash Trial/Build_Trial.command` from the project root.
 Select player count,
 quiz, and car colors by clicking the start screen options or using the displayed
@@ -11,7 +11,7 @@ shove larger spiders aside. Spiders in the largest quarter also slow your car
 for half a second. Two-player mode has a shared score and its own best score; the game ends
 when both cars are lost. The Spanish quiz is disabled for two players.
 
-The rare orange flame pickup adds three seconds of fuel. Hold your usual fire
+The orange flame pickup adds two seconds of fuel. Hold your usual fire
 key to burn bushes and spiders ahead of you. Unused fuel stays in reserve.
 
-The 2.0.2 trial is a separate build from the frozen 2.0.1 archive in Distribution.
+The 2.0.3 trial adds the animated zapper arc and doubles the flame pickup rate compared with 2.0.2.

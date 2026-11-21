@@ -4,7 +4,7 @@ from typing import Literal
 
 PickupKind = Literal['ammo', 'armor', 'slow', 'repellent', 'flame']
 COLORS = ('original', 'blue', 'red', 'green', 'yellow')
-FLAME_FUEL_MS = 3000
+FLAME_FUEL_MS = 2000
 
 @dataclass
 class Options:

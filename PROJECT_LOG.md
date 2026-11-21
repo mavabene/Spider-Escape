@@ -48,3 +48,11 @@ Armored cars splat small spiders, shove larger ones aside, and slow briefly on i
 Archived the read-only release ZIP in iCloud Distribution and recorded its SHA-256 checksum. Verified the extracted app’s signature and matched it to the installed build. The release adds denser, drive-under bushes, a rare flamethrower with per-player fuel gauges, shield expiry colors, wider solo play, menu scores, and a five-second collision freeze.
 
 **Next step / open issues** Play-test the release on both Macs. The Git checkout on this Mac is still in iCloud.
+
+## 2026-11-20 22:38 PST
+
+**TL;DR** Saved Spider Escape 2.0.3 Trial with an animated electrical zapper and more frequent, shorter flamethrower pickups.
+
+The zapper fires a flickering, branching blue-white arc. Flamethrower pickups spawn twice as often as in 2.0.2 and give two seconds of fuel each. Built the versioned Mac app in `Trial` and stored the signed ZIP in iCloud Distribution. Arc rendering, pickup odds and fuel, packaged startup, bundle version, signature, and the archive checksum were verified.
+
+**Next step / open issues** Play-test the 2.0.3 trial interactively on both Macs.
