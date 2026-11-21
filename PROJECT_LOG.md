@@ -39,3 +39,12 @@ Updated the clickable start menu, ten-second zapper charging, illustrated pickup
 Armored cars splat small spiders, shove larger ones aside, and slow briefly on impact with the largest quarter. Brown and gray spiders predominate, both cars default to Original, and two-player mode uses 1280 × 800. Incorporated the compact two-column options panel from iCloud. Rebuilt, signed, and verified the Mac app in `Trial`. Collision, palette, and headless display checks passed.
 
 **Next step / open issues** Play-test the updated trial interactively. The iCloud checkout still has its original menu edit; use the local checkout for the current app.
+
+
+## 2026-11-20 22:07 PST
+
+**TL;DR** Saved the current Spider Escape build as the 2.0.2 Mac release.
+
+Archived the read-only release ZIP in iCloud Distribution and recorded its SHA-256 checksum. Verified the extracted app’s signature and matched it to the installed build. The release adds denser, drive-under bushes, a rare flamethrower with per-player fuel gauges, shield expiry colors, wider solo play, menu scores, and a five-second collision freeze.
+
+**Next step / open issues** Play-test the release on both Macs. The Git checkout on this Mac is still in iCloud.

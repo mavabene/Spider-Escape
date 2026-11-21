@@ -11,4 +11,7 @@ shove larger spiders aside. Spiders in the largest quarter also slow your car
 for half a second. Two-player mode has a shared score and its own best score; the game ends
 when both cars are lost. The Spanish quiz is disabled for two players.
 
+The rare orange flame pickup adds three seconds of fuel. Hold your usual fire
+key to burn bushes and spiders ahead of you. Unused fuel stays in reserve.
+
 The 2.0.2 trial is a separate build from the frozen 2.0.1 archive in Distribution.
